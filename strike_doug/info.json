@@ -48,10 +48,9 @@
                     "offs_y": -6
                 },
                 {
-                    "special": "AKC_HIDE_ACTOR"
+                    "special": "AKC_HIDEACTOR"
                 }
-            ],
-            "is_repeat_4_dirs": true
+            ]
         },
         {
             "def": [
@@ -81,10 +80,9 @@
                     "offs_y": -5
                 },
                 {
-                    "special": "AKC_HIDE_ACTOR"
+                    "special": "AKC_HIDEACTOR"
                 }
-            ],
-            "is_repeat_4_dirs": true
+            ]
         },
         {
             "def": [
@@ -116,8 +114,8 @@
                 {
                     "special": "AKC_HIDEACTOR"
                 }
-            ],
-            "is_repeat_4_dirs": true
+            ]
         }
-    ]
+    ],
+    "anim_offsets": [-1, -1, -1, -1, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
 }

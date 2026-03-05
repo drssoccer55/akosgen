@@ -1,0 +1,265 @@
+{
+    "name": "swing_test",
+    "frames": [
+        "frames/0.png",
+        "frames/1.png",
+        "frames/2.png",
+        "frames/3.png",
+        "frames/4.png",
+        "frames/5.png",
+        "frames/6.png",
+        "frames/7.png"
+    ],
+    "transparent_color": "#ffd3ff",
+    "room_palette": 4,
+    "anims": [
+        {
+            "def": [
+                {
+                    "frame": 0,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_IFVAREQJUMP_LASTDRAW",
+                    "var": 1,
+                    "value": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "def": [
+                {
+                    "frame": 1,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_IFVAREQJUMP_LASTDRAW",
+                    "var": 1,
+                    "value": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "def": [
+                {
+                    "frame": 2,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_IFVAREQJUMP_LASTDRAW",
+                    "var": 1,
+                    "value": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "def": [
+                {
+                    "frame": 3,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "def": [
+                {
+                    "frame": 4,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 4,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 4,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 4,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 4,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 4,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 4,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "def": [
+                {
+                    "frame": 5,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 5,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 5,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 5,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 5,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 5,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 5,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "def": [
+                {
+                    "frame": 6,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 6,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 6,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 6,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 6,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 6,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 6,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "def": [
+                {
+                    "frame": 7,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 7,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 7,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 7,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 7,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 7,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 7,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ]
+        }
+    ],
+    "anim_offsets": [-1, -1, -1, -1, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7]
+}

@@ -10,9 +10,9 @@ class BinaryGen:
 
 class AKHD(BinaryGen):
 
-    def __init__(self, numFrames, numAnims):
+    def __init__(self, numFrames, numChores):
         self.numFrames = numFrames
-        self.numAnims = numAnims
+        self.numChores = numChores
 
     def binary(self) -> bytearray:
         bytez = bytearray()
@@ -20,7 +20,7 @@ class AKHD(BinaryGen):
         bytez += struct.pack(">I", 20) # uint32BE size 4 + 4 + 2*(6)
         bytez += struct.pack("<H", 1) # uint16 versionNumber
         bytez += struct.pack("<H", 32768)  # uint16 costumeFlags
-        bytez += struct.pack("<H", self.numAnims)  # uint16 choreCount (num animations I think)
+        bytez += struct.pack("<H", self.numChores)  # uint16 choreCount (not number of animations, more like animation slots)
         bytez += struct.pack("<H", self.numFrames)  # uint16 celsCount (num frames)
         bytez += struct.pack("<H", 1)  # uint16 celCompressionCodec
         bytez += struct.pack("<H", 16)  # uint16 layerCount? don't think it gets used
@@ -195,6 +195,11 @@ class AKSQ(BinaryGen):
                             bytez += struct.pack("B", cmd["var"])
                         case "AKC_EMPTYCEL":
                             bytez += struct.pack("<H", 448) # uint16 0xC001 (01C0 bc bytes flipped)
+                        case "AKC_IFVAREQJUMP_LASTDRAW":
+                            bytez += struct.pack("<H", 28864)  # uint16 0xC070 (70C0 bc bytes flipped)
+                            bytez += struct.pack("<H", last_draw)
+                            bytez += struct.pack("<H", cmd["value"])
+                            bytez += struct.pack("B", cmd["var"])
                         case _:
                             print(f"Command not supported {cmd['special']} - skipping")
                             continue
@@ -221,32 +226,16 @@ class AKCH(BinaryGen):
         self.aksq_offsets = aksq_offsets
         self.data = data
 
-    @staticmethod
-    def dir_animation_count(data: dict) -> int:
-        total = 0
-        for anim in data["anims"]:
-            if "is_repeat_4_dirs" in anim and anim["is_repeat_4_dirs"]:
-                total += 4
-            else:
-                total += 1
-        return total
-
     def binary(self) -> bytearray:
         bytez = bytearray()
         bytez += "AKCH".encode()
-        # uint32BE 4 header, 4 size, 8 bytes empty frame, 2 bytes per offset def and 7 bytes per anim def
-        dir_animation_count = AKCH.dir_animation_count(self.data)
-        bytez += struct.pack(">I", 16 + (7 * len(self.aksq_offsets)) + (2 * dir_animation_count))
-        bytez += struct.pack("Q", 0) # unsigned long long (8 bytes) unused
-        start = len(self.aksq_offsets) * 8 + 8
-        # The offsets for the animation definitions followed by the definitions
-        for anim in data["anims"]:
-            if "is_repeat_4_dirs" in anim and anim["is_repeat_4_dirs"]:
-                for _ in range(4):
-                    bytez += struct.pack("<H", start)
+        # uint32BE 4 header, 4 size, 2 bytes per offset def and 7 bytes per anim def
+        bytez += struct.pack(">I", 8 + (7 * len(self.aksq_offsets)) + (2 * len(data["anim_offsets"])))
+        for anim_offset in data["anim_offsets"]:
+            if anim_offset == -1:
+                bytez += struct.pack("<H", 0) # blank
             else:
-                bytez += struct.pack("<H", start)
-            start += 7
+                bytez += struct.pack("<H", (7 * anim_offset) + (2 * len(data["anim_offsets"])))  # definition position
 
         for offset in self.aksq_offsets:
             bytez += struct.pack("<H", 32768) # uint16 mask for 1 limb
@@ -278,7 +267,7 @@ class AKOS(BinaryGen):
 
         image_palette = ImagePalette(room_palette)
 
-        akhd = AKHD(numFrames=len(frames), numAnims=16).binary()
+        akhd = AKHD(numFrames=len(frames), numChores=len(data["anim_offsets"])).binary()
         akcd = AKCD(frames=frames, palette=image_palette) # Have to run akcd to get the local palette
         akcd_bin = akcd.binary() # generates offsets
         local_palette = image_palette.get_16_color_local_palette()
