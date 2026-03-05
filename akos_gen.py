@@ -186,8 +186,18 @@ class AKSQ(BinaryGen):
             self.offsets.append(len(bytez))
             for cmd in anim["def"]:
                 if "special" in cmd:
-                    if cmd["special"] == "AKC_HIDE_ACTOR":
-                        bytez += struct.pack("<H", 34496) # uint16 0xC086
+                    match cmd["special"]:
+                        case "AKC_HIDEACTOR":
+                            bytez += struct.pack("<H", 34496) # uint16 0xC086 (86C0 bc bytes flipped)
+                        case "AKC_SETVAR":
+                            bytez += struct.pack("<H", 4288)  # uint16 0xC010 (10C0 bc bytes flipped)
+                            bytez += struct.pack("<H", cmd["value"])
+                            bytez += struct.pack("B", cmd["var"])
+                        case "AKC_EMPTYCEL":
+                            bytez += struct.pack("<H", 448) # uint16 0xC001 (01C0 bc bytes flipped)
+                        case _:
+                            print(f"Command not supported {cmd['special']} - skipping")
+                            continue
                 else:
                     last_draw = len(bytez)
                     bytez += struct.pack("<H", 8384) # uint16 0xC020

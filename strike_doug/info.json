@@ -114,7 +114,7 @@
                     "offs_y": -5
                 },
                 {
-                    "special": "AKC_HIDE_ACTOR"
+                    "special": "AKC_HIDEACTOR"
                 }
             ],
             "is_repeat_4_dirs": true

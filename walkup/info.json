@@ -1,0 +1,48 @@
+{
+    "name": "walkup_test",
+    "frames": [
+        "frames/1.png"
+    ],
+    "transparent_color": "#ffd3ff",
+    "room_palette": 4,
+    "anims": [
+        {
+            "def": [
+                {
+                    "special": "AKC_EMPTYCEL"
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 1,
+                    "value": 1
+                },
+                {
+                    "frame": 0,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 0,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 0,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "frame": 0,
+                    "offs_x": 0,
+                    "offs_y": 0
+                },
+                {
+                    "special": "AKC_SETVAR",
+                    "var": 0,
+                    "value": 1
+                }
+            ],
+            "is_repeat_4_dirs": true
+        }
+    ]
+}
