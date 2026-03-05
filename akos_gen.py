@@ -207,21 +207,37 @@ class AKSQ(BinaryGen):
 
 
 class AKCH(BinaryGen):
-    def __init__(self, aksq_offsets: list[int]):
+    def __init__(self, aksq_offsets: list[int], data: dict):
         self.aksq_offsets = aksq_offsets
+        self.data = data
+
+    @staticmethod
+    def dir_animation_count(data: dict) -> int:
+        total = 0
+        for anim in data["anims"]:
+            if "is_repeat_4_dirs" in anim and anim["is_repeat_4_dirs"]:
+                total += 4
+            else:
+                total += 1
+        return total
 
     def binary(self) -> bytearray:
         bytez = bytearray()
         bytez += "AKCH".encode()
-        # uint32BE 4 header, 4 size, 8 bytes empty frame, 4 dirs per anim is 8 bytes and 7 bytes per anim def
-        # TODO will probably need to handle dirs better in future
-        bytez += struct.pack(">I", 16 + 15 * len(self.aksq_offsets))
+        # uint32BE 4 header, 4 size, 8 bytes empty frame, 2 bytes per offset def and 7 bytes per anim def
+        dir_animation_count = AKCH.dir_animation_count(self.data)
+        bytez += struct.pack(">I", 16 + (7 * len(self.aksq_offsets)) + (2 * dir_animation_count))
         bytez += struct.pack("Q", 0) # unsigned long long (8 bytes) unused
         start = len(self.aksq_offsets) * 8 + 8
-        for offset in self.aksq_offsets:
-            for i in range(4): # 4 dirs
+        # The offsets for the animation definitions followed by the definitions
+        for anim in data["anims"]:
+            if "is_repeat_4_dirs" in anim and anim["is_repeat_4_dirs"]:
+                for _ in range(4):
+                    bytez += struct.pack("<H", start)
+            else:
                 bytez += struct.pack("<H", start)
             start += 7
+
         for offset in self.aksq_offsets:
             bytez += struct.pack("<H", 32768) # uint16 mask for 1 limb
             bytez += struct.pack("B", 6)  # 1 byte mode 6
@@ -261,7 +277,7 @@ class AKOS(BinaryGen):
         akof = AKOF(akcd.offsets).binary()
         aksq = AKSQ(self.data)
         aksq_bin = aksq.binary()
-        akch = AKCH(aksq.offsets).binary()
+        akch = AKCH(aksq.offsets, self.data).binary()
         total_size = len(akhd) + len(akpl) + len(akcd_bin) + len(akci) + len(akof) + len(aksq_bin) + len(akch)
         bytez = bytearray()
         bytez += "AKOS".encode()
