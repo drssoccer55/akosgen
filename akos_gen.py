@@ -3,6 +3,15 @@ import sys
 import json
 from PIL import Image, ImageColor
 
+# SCUMM v72he AKOS animation opcodes (little-endian uint16)
+AKC_DRAWCEL = 0x20C0        # opcode 0xC020
+AKC_SETVAR = 0x10C0          # opcode 0xC010
+AKC_EMPTYCEL = 0x01C0        # opcode 0xC001
+AKC_GOTOSTATE = 0x30C0       # opcode 0xC030
+AKC_IFVAREQJUMP_LASTDRAW = 0x70C0  # opcode 0xC070
+AKC_HIDEACTOR = 0x86C0       # opcode 0xC086
+AKC_ENDSEQ = 0xFFC0          # opcode 0xC0FF
+
 class BinaryGen:
     def binary(self) -> bytearray:
         raise NotImplementedError
@@ -50,8 +59,8 @@ class AKPL(BinaryGen):
         bytez = bytearray()
         bytez += "AKPL".encode()
         bytez += struct.pack(">I", 24) # 16 colors plus header plus this 4 bytes
-        for i in range(len(self.local_palette)):
-            bytez.append(self.local_palette[i])
+        for color in self.local_palette:
+            bytez.append(color)
         return bytez
 
 '''
@@ -67,12 +76,8 @@ class ImagePalette:
     cannot be created until after the AKCD block is processed.
     """
     @staticmethod
-    def rgb_to_key(color: list[int]) -> str:
+    def rgb_to_key(color) -> str:
         return f'{color[0]},{color[1]},{color[2]}'
-
-    @staticmethod
-    def rgb_to_key_tuple(color: tuple[int, int, int]) -> str:
-        return ImagePalette.rgb_to_key([color[0], color[1], color[2]])
 
     def __init__(self, room_palette: Image.Image):
         self.color_map = {}
@@ -115,48 +120,40 @@ class AKCD(BinaryGen):
         self.bytez = bytearray()
         self.offsets = []
 
-    def rle_compression(self):
+    def _encode_run(self, color: int, length: int):
         '''
         For 16 colors, the color is stored in the first 4 bits, and the rep (repeat) is the next 4 bits. If rep is 0,
         need to check the next full bit for the repeat count.
         '''
+        while length > 255:
+            self.bytez += struct.pack("B", color << 4)
+            self.bytez += struct.pack("B", 255)
+            length -= 255
+        if length > 15:
+            self.bytez += struct.pack("B", color << 4)
+            self.bytez += struct.pack("B", length)
+        else:
+            self.bytez += struct.pack("B", color << 4 | length)
+
+    def rle_compression(self):
         for frame in self.frames:
             rgb_frame = frame.convert('RGB')
             self.offsets.append(len(self.bytez))
-            cur_color = self.palette.get_room_color(ImagePalette.rgb_to_key_tuple(rgb_frame.getpixel((0, 0))))
+            cur_color = self.palette.get_room_color(ImagePalette.rgb_to_key(rgb_frame.getpixel((0, 0))))
             cur_len = 0
             for i in range(rgb_frame.width):
                 for j in range(rgb_frame.height):
-                    pix_color = ImagePalette.rgb_to_key_tuple(rgb_frame.getpixel((i, j)))
+                    pix_color = ImagePalette.rgb_to_key(rgb_frame.getpixel((i, j)))
                     room_color = self.palette.get_room_color(pix_color)
                     if room_color == cur_color:
                         cur_len += 1
                         continue
                     else:
-                        # RLE encode last run
-                        while cur_len > 255:
-                            self.bytez += struct.pack("B", cur_color << 4)
-                            self.bytez += struct.pack("B", 255)
-                            cur_len -= 255
-                        if cur_len > 15:
-                            self.bytez += struct.pack("B", cur_color << 4)
-                            self.bytez += struct.pack("B", cur_len)
-                        else:
-                            self.bytez += struct.pack("B", cur_color << 4 | cur_len)
-                        # Swap to new color
+                        self._encode_run(cur_color, cur_len)
                         cur_color = room_color
                         cur_len = 1
-            # ran out of pixels but encode the last run
             if cur_len > 0:
-                while cur_len > 255:
-                    self.bytez += struct.pack("B", cur_color << 4)
-                    self.bytez += struct.pack("B", 255)
-                    cur_len -= 255
-                if cur_len > 15:
-                    self.bytez += struct.pack("B", cur_color << 4)
-                    self.bytez += struct.pack("B", cur_len)
-                else:
-                    self.bytez += struct.pack("B", cur_color << 4 | cur_len)
+                self._encode_run(cur_color, cur_len)
 
     def binary(self) -> bytearray:
         self.rle_compression()
@@ -222,15 +219,15 @@ class AKSQ(BinaryGen):
                 if "special" in cmd:
                     match cmd["special"]:
                         case "AKC_HIDEACTOR":
-                            bytez += struct.pack("<H", 34496) # uint16 0xC086 (86C0 bc bytes flipped)
+                            bytez += struct.pack("<H", AKC_HIDEACTOR)
                         case "AKC_SETVAR":
-                            bytez += struct.pack("<H", 4288)  # uint16 0xC010 (10C0 bc bytes flipped)
+                            bytez += struct.pack("<H", AKC_SETVAR)
                             bytez += struct.pack("<H", cmd["value"])
                             bytez += struct.pack("B", cmd["var"])
                         case "AKC_EMPTYCEL":
-                            bytez += struct.pack("<H", 448) # uint16 0xC001 (01C0 bc bytes flipped)
+                            bytez += struct.pack("<H", AKC_EMPTYCEL)
                         case "AKC_IFVAREQJUMP_LASTDRAW":
-                            bytez += struct.pack("<H", 28864)  # uint16 0xC070 (70C0 bc bytes flipped)
+                            bytez += struct.pack("<H", AKC_IFVAREQJUMP_LASTDRAW)
                             bytez += struct.pack("<H", last_draw)
                             bytez += struct.pack("<H", cmd["value"])
                             bytez += struct.pack("B", cmd["var"])
@@ -239,14 +236,14 @@ class AKSQ(BinaryGen):
                             continue
                 else:
                     last_draw = len(bytez)
-                    bytez += struct.pack("<H", 8384) # uint16 0xC020
+                    bytez += struct.pack("<H", AKC_DRAWCEL)
                     bytez += struct.pack("B", 1) # 1 limb
                     bytez += struct.pack("<h", cmd["offs_x"])  # int16
                     bytez += struct.pack("<h", cmd["offs_y"])  # int16
                     bytez += struct.pack("B", cmd["frame"]) # 1 byte representing frames so capped at 256 frames rn
-            bytez += struct.pack("<H", 12480) # uint16 0xC030 AKC_GoToState
+            bytez += struct.pack("<H", AKC_GOTOSTATE)
             bytez += struct.pack("<H", last_draw)
-            bytez += struct.pack("<H", 65472)  # uint16 0xC0FF AKC_ENDSEQ
+            bytez += struct.pack("<H", AKC_ENDSEQ)
 
         header = bytearray()
         header += "AKSQ".encode()
