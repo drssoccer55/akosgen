@@ -5,10 +5,14 @@ from PIL import Image, ImageColor
 
 class BinaryGen:
     def binary(self) -> bytearray:
-        pass
+        raise NotImplementedError
 
 
 class AKHD(BinaryGen):
+    """
+    The Actor header. Contains information on the number of frames and chores. Frames is the number of images making up the costume.
+    Chores is the number of animation offsets.
+    """
 
     def __init__(self, numFrames, numChores):
         self.numFrames = numFrames
@@ -28,6 +32,10 @@ class AKHD(BinaryGen):
 
 
 class AKPL(BinaryGen):
+    """
+    The Actor palette. This is a local 16 color palette which links to the colors in the room palette. Ex. 0 is transparent in the
+    room palette so a slot in the local palette being 0 would be the transparent color.
+    """
 
     def __init__(self, local_palette: list[int]):
         # 16 color palette where certain numbers are special (0 transparent, 232-237 color changer dark to light (consistent across room 3-4 palettes))
@@ -35,7 +43,7 @@ class AKPL(BinaryGen):
         # is an opcode to update the actorPaletteColor (SO_PALETTE hits in scriptv72he.cpp in range I expect)
         if len(local_palette) != 16:
             print(f'Local Palette does not have 16 colors! {len(local_palette)}')
-            exit(1)
+            sys.exit(1)
         self.local_palette = local_palette
 
     def binary(self) -> bytearray:
@@ -53,6 +61,11 @@ palette
 '''
 
 class ImagePalette:
+    """
+    Initialized on the room palette which is an image of 256 colors. When the frames are processed and a new color
+    is encountered it will go through this ImagePalette definition and local colors get recorded. This means the AKPL block
+    cannot be created until after the AKCD block is processed.
+    """
     @staticmethod
     def rgb_to_key(color: list[int]) -> str:
         return f'{color[0]},{color[1]},{color[2]}'
@@ -76,16 +89,26 @@ class ImagePalette:
         return self.local_colors[tmp]
 
     def get_16_color_local_palette(self):
+        if len(self.local_colors) > 16:
+            print(f'More than 16 local colors found in frame data {len(self.local_colors)}')
+            sys.exit(1)
         # room color -> local color
         items = self.local_colors.items()
-        sorted(items, key=lambda x: x[1])
-        items = [x[0] for x in items]
+        # items sorted by order encountered
+        sorted_items = sorted(items, key=lambda x: x[1])
+        items = [x[0] for x in sorted_items]
+
         while len(items) < 16:
             items.append(0)
         return items
 
 
 class AKCD(BinaryGen):
+    """
+    Not sure what the CD stands for but this contains all the frame data stored compressed with RLE. All frame data is shoved
+    into the binary in a giant blob. This class stores the offsets of the images for consumption but the offsets are not stored in
+    the AKCD binary.
+    """
     def __init__(self, frames:list[Image.Image], palette: ImagePalette):
         self.palette = palette
         self.frames = frames
@@ -145,6 +168,9 @@ class AKCD(BinaryGen):
 
 
 class AKCI(BinaryGen):
+    """
+    Not sure what CI stands for but this just stores the width and height of the frames.
+    """
     def __init__(self, frames: list[Image.Image]):
         self.frames = frames
 
@@ -159,6 +185,9 @@ class AKCI(BinaryGen):
 
 
 class AKOF(BinaryGen):
+    """
+    Stores the frame offsets in the AKCD binary
+    """
     def __init__(self, akcd_offsets: list[int]):
         self.akcd_offsets = akcd_offsets
 
@@ -175,6 +204,11 @@ class AKOF(BinaryGen):
 
 
 class AKSQ(BinaryGen):
+    """
+    Actor sequence. This is the bytecode for all the animations packed together. An animation is a list of commands.
+    For example, a draw command saying which frame to draw and at what offset. There are also a number of special commands that
+    interface with the game and can set game data.
+    """
     def __init__(self, data: dict):
         self.data = data
         self.offsets = []
@@ -222,6 +256,10 @@ class AKSQ(BinaryGen):
 
 
 class AKCH(BinaryGen):
+    """
+    Not sure what CH stands for. AKCH is used for animation offsets and needs the AKSQ binary defined first to know
+    where the offsets are located. All animations in this project use 1 limb for simplification.
+    """
     def __init__(self, aksq_offsets: list[int], data: dict):
         self.aksq_offsets = aksq_offsets
         self.data = data
@@ -230,12 +268,12 @@ class AKCH(BinaryGen):
         bytez = bytearray()
         bytez += "AKCH".encode()
         # uint32BE 4 header, 4 size, 2 bytes per offset def and 7 bytes per anim def
-        bytez += struct.pack(">I", 8 + (7 * len(self.aksq_offsets)) + (2 * len(data["anim_offsets"])))
-        for anim_offset in data["anim_offsets"]:
+        bytez += struct.pack(">I", 8 + (7 * len(self.aksq_offsets)) + (2 * len(self.data["anim_offsets"])))
+        for anim_offset in self.data["anim_offsets"]:
             if anim_offset == -1:
                 bytez += struct.pack("<H", 0) # blank
             else:
-                bytez += struct.pack("<H", (7 * anim_offset) + (2 * len(data["anim_offsets"])))  # definition position
+                bytez += struct.pack("<H", (7 * anim_offset) + (2 * len(self.data["anim_offsets"])))  # definition position
 
         for offset in self.aksq_offsets:
             bytez += struct.pack("<H", 32768) # uint16 mask for 1 limb
@@ -246,13 +284,16 @@ class AKCH(BinaryGen):
 
 
 class AKOS(BinaryGen):
+    """
+    The actor costume. This represents an AKOS file.
+    """
     def __init__(self, path, data: dict):
         self.path = path
         self.data = data
 
     def binary(self) -> bytearray:
         frames = []
-        for frame in data['frames']:
+        for frame in self.data['frames']:
             frames.append(Image.open(f'{self.path}/{frame}'))
 
         transparent_color = ImageColor.getcolor(self.data["transparent_color"], "RGB")
@@ -267,7 +308,7 @@ class AKOS(BinaryGen):
 
         image_palette = ImagePalette(room_palette)
 
-        akhd = AKHD(numFrames=len(frames), numChores=len(data["anim_offsets"])).binary()
+        akhd = AKHD(numFrames=len(frames), numChores=len(self.data["anim_offsets"])).binary()
         akcd = AKCD(frames=frames, palette=image_palette) # Have to run akcd to get the local palette
         akcd_bin = akcd.binary() # generates offsets
         local_palette = image_palette.get_16_color_local_palette()
@@ -295,12 +336,11 @@ if __name__ == '__main__':
     args = sys.argv
     if len(args) != 2:
         print(f'Usage: {args[0]} <dir>')
-        exit(1)
+        sys.exit(1)
 
     dir_path = args[1]
     with open(f'{dir_path}/info.json', 'r') as file:
         data = json.load(file)
-        print(data)
 
     with open(f'{data["name"]}.AKOS', 'wb') as file:
         file.write(AKOS(path=dir_path, data=data).binary())
