@@ -284,15 +284,15 @@ class AKOS(BinaryGen):
     """
     The actor costume. This represents an AKOS file.
     """
-    def __init__(self, path, data: dict):
+    def __init__(self, path):
         self.path = path
-        self.data = data
+        self.data = self.config()
+
+    def __getitem__(self, index):
+        return self.data[index]
 
     def binary(self) -> bytearray:
-        frames = []
-        for frame in self.data['frames']:
-            frames.append(Image.open(f'{self.path}/{frame}'))
-
+        frames = self.frames()
         transparent_color = ImageColor.getcolor(self.data["transparent_color"], "RGB")
 
         # Get room palette and override color of transparent as specified
@@ -328,6 +328,36 @@ class AKOS(BinaryGen):
         bytez += akcd_bin
         return bytez
 
+    def config(self) -> dict:
+        """
+        Open the JSON config
+        """
+        with open(f'{self.path}/info.json', 'r') as file:
+            data = json.load(file)
+
+        return data
+
+    def frames(self) -> list[Image.Image]:
+        """
+        Use the frames
+        """
+        frames = []
+        for frame in self.data['frames']:
+            frames.append(Image.open(f'{self.path}/{frame}'))
+
+        return frames
+
+    @property
+    def anims(self) -> list[dict]:
+        return self.data["anims"]
+
+    def get_name(self) -> str:
+        return self.data["name"]
+
+    @property
+    def transparent_color(self) -> str | None:
+        return self.data.get("transparent_color", None)
+
 
 if __name__ == '__main__':
     args = sys.argv
@@ -336,8 +366,8 @@ if __name__ == '__main__':
         sys.exit(1)
 
     dir_path = args[1]
-    with open(f'{dir_path}/info.json', 'r') as file:
-        data = json.load(file)
 
-    with open(f'{data["name"]}.AKOS', 'wb') as file:
-        file.write(AKOS(path=dir_path, data=data).binary())
+    akos_file = AKOS(path=dir_path)
+
+    with open(f'{akos_file.get_name()}.AKOS', 'wb') as file:
+        file.write(akos_file.binary())

@@ -48,6 +48,18 @@ class PreviewWidget(QWidget):
         akos_frames = akos.frames()
         self.frames = []
         for frame in akos_frames:
+            if self.akos.transparent_color is not None:
+                if frame.mode == "RGB":
+                    frame.putalpha(255) # Completely opaque
+                # do the conversion to transparent pixels here by modifying the frame data in place
+                target_rgb = tuple(bytes.fromhex(self.akos.transparent_color.lstrip("#")))
+                pixels = frame.load()
+                for y in range(frame.height):
+                    for x in range(frame.width):
+                        r, g, b, _ = pixels[x, y]
+                        if (r, g, b) == target_rgb:
+                            pixels[x, y] = (r, g, b, 0)
+                
             im = frame.convert("RGBA")
             data = im.tobytes("raw","RGBA")
             qim = QImage(data, im.size[0], im.size[1], QImage.Format_RGBA8888)
