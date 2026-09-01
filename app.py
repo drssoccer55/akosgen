@@ -79,7 +79,13 @@ class PreviewWidget(QWidget):
             selected_anim = self.akos.anims[self.animation.anim]
             draw_frames = [x for x in selected_anim["def"] if x.get("frame", None) is not None]
             selected_frame = draw_frames[self.animation.frame]
-            painter.drawPixmap(0,0, self.frames[selected_frame["frame"]])
+            char_pos_x = 320
+            char_pos_y = 240 # TODO y is 340 in game not sure why it is different
+            if "offs_x" in selected_frame:
+                char_pos_x += selected_frame["offs_x"]
+            if "offs_y" in selected_frame:
+                char_pos_y += selected_frame["offs_y"]
+            painter.drawPixmap(char_pos_x, char_pos_y, self.frames[selected_frame["frame"]])
         painter.end()
 
     def on_data_change(self):
