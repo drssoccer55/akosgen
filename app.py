@@ -3,6 +3,7 @@ from PySide6.QtCore import QSize, QObject, Signal, Qt
 from PySide6.QtWidgets import QApplication, QComboBox, QLabel, QLineEdit, QMainWindow, QFileDialog, QSlider, QToolBar, QVBoxLayout, QWidget, QHBoxLayout
 from PySide6.QtGui import QAction, QImage, QPixmap, QPainter
 from akos_gen import AKOS
+from seq_edit import SequenceEditor
 # Only needed for access to command line arguments
 import sys
 
@@ -80,7 +81,7 @@ class PreviewWidget(QWidget):
             draw_frames = [x for x in selected_anim["def"] if x.get("frame", None) is not None]
             selected_frame = draw_frames[self.animation.frame]
             char_pos_x = 320
-            char_pos_y = 240 # TODO y is 340 in game not sure why it is different
+            char_pos_y = 240
             if "offs_x" in selected_frame:
                 char_pos_x += selected_frame["offs_x"]
             if "offs_y" in selected_frame:
@@ -146,7 +147,7 @@ class ConfigWindow(QWidget):
         animation_picker.addWidget(animbox)
         for (i,anim) in enumerate(akos.anims):
             animbox.addItem(str(i))
-        animbox.currentIndexChanged.connect(self.anim_pick)
+        animbox.activated.connect(self.anim_pick)
 
         layout.addLayout(name_config)
         layout.addLayout(animation_picker)
@@ -168,6 +169,20 @@ class MainWindow(QMainWindow):
         button_action.setStatusTip("Open an AKOS directory")
         button_action.triggered.connect(self.open_directory)
         main_toolbar.addAction(button_action)
+
+        seq_action = QAction("Open Sequence", self)
+        seq_action.setStatusTip("Open an image sequence directory to color-reduce")
+        seq_action.triggered.connect(self.open_sequence_directory)
+        main_toolbar.addAction(seq_action)
+
+    def open_sequence_directory(self):
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Sequence Directory"
+        )
+        if not directory:
+            return
+        self.setCentralWidget(SequenceEditor(directory))
 
     def open_directory(self):
         directory = QFileDialog.getExistingDirectory(
