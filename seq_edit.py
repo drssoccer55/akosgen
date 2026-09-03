@@ -1,4 +1,3 @@
-import colorsys
 import math
 import os
 import re
@@ -30,18 +29,41 @@ def room_palette():
     return _PALETTE_CACHE
 
 
-def _hsv_cyl(rgb):
-    r, g, b = (c / 255.0 for c in rgb)
-    h, s, v = colorsys.rgb_to_hsv(r, g, b)
-    ang = math.radians(h * 360.0)
-    return (s * math.cos(ang), s * math.sin(ang), v)
+_D65_XN = 0.95047
+_D65_YN = 1.0
+_D65_ZN = 1.08883
+_LAB_EPS = 216.0 / 24389.0
+_LAB_KAPPA = 24389.0 / 27.0
 
 
-def _nearest_cyl(rgb, cycands):
-    x, y, z = _hsv_cyl(rgb)
+def _srgb_to_linear(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _lab_f(t):
+    if t > _LAB_EPS:
+        return t ** (1.0 / 3.0)
+    return (_LAB_KAPPA * t + 16.0) / 116.0
+
+
+def _rgb_to_lab(r, g, b):
+    rl = _srgb_to_linear(r / 255.0)
+    gl = _srgb_to_linear(g / 255.0)
+    bl = _srgb_to_linear(b / 255.0)
+    x = (0.4124564 * rl + 0.3575761 * gl + 0.1804375 * bl) / _D65_XN
+    y = (0.2126729 * rl + 0.7151522 * gl + 0.0721750 * bl) / _D65_YN
+    z = (0.0193339 * rl + 0.1191920 * gl + 0.9503041 * bl) / _D65_ZN
+    fx = _lab_f(x)
+    fy = _lab_f(y)
+    fz = _lab_f(z)
+    return (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+
+
+def _nearest_lab(rgb, lab_candidates):
+    lx, ax, bx = _rgb_to_lab(*rgb)
     best, best_d = 0, None
-    for i, (cx, cy, cz) in enumerate(cycands):
-        d = (x - cx) * (x - cx) + (y - cy) * (y - cy) + (z - cz) * (z - cz)
+    for i, (cl, ca, cb) in enumerate(lab_candidates):
+        d = (lx - cl) ** 2 + (ax - ca) ** 2 + (bx - cb) ** 2
         if best_d is None or d < best_d:
             best, best_d = i, d
     return best
@@ -55,13 +77,13 @@ def quantize_frame(img, colors):
     src = rgba.load()
     out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     dst = out.load()
-    cycands = [_hsv_cyl(c) for c in colors]
+    cycands = [_rgb_to_lab(*c) for c in colors]
     for y in range(h):
         for x in range(w):
             r, g, b, a = src[x, y]
             if a == 0:
                 continue
-            dst[x, y] = colors[_nearest_cyl((r, g, b), cycands)] + (255,)
+            dst[x, y] = colors[_nearest_lab((r, g, b), cycands)] + (255,)
     return out
 
 
