@@ -69,10 +69,10 @@ def _nearest_lab(rgb, lab_candidates):
     return best
 
 
-def quantize_frame(img, colors):
+def quantize_frame(img, colors, alpha_threshold=1):
     rgba = img.convert("RGBA")
     if not colors:
-        return rgba.copy()
+        return apply_alpha_threshold(rgba, alpha_threshold)
     w, h = rgba.size
     src = rgba.load()
     out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -81,9 +81,24 @@ def quantize_frame(img, colors):
     for y in range(h):
         for x in range(w):
             r, g, b, a = src[x, y]
-            if a == 0:
+            if a < alpha_threshold:
                 continue
             dst[x, y] = colors[_nearest_lab((r, g, b), cycands)] + (255,)
+    return out
+
+
+def apply_alpha_threshold(rgba, alpha_threshold):
+    if alpha_threshold <= 0:
+        return rgba.copy()
+    w, h = rgba.size
+    src = rgba.load()
+    out = rgba.copy()
+    dst = out.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = src[x, y]
+            if a < alpha_threshold:
+                dst[x, y] = (r, g, b, 0)
     return out
 
 
@@ -198,6 +213,19 @@ class SequenceConfig(QWidget):
         trans_row.addWidget(self.trans_swatch)
         trans_row.addStretch(1)
 
+        self._threshold = 1
+        alpha_row = QHBoxLayout()
+        alpha_row.addWidget(QLabel("Alpha threshold:"))
+        self.alpha_slider = QSlider(Qt.Orientation.Horizontal)
+        self.alpha_slider.setRange(1, 255)
+        self.alpha_slider.setValue(self._threshold)
+        self.alpha_slider.setToolTip("Pixels with alpha below this are treated as transparent (alpha=0)")
+        self.alpha_slider.valueChanged.connect(self.on_alpha_changed)
+        self.alpha_val = QLabel()
+        alpha_row.addWidget(self.alpha_slider, 1)
+        alpha_row.addWidget(self.alpha_val)
+        self.update_alpha_label()
+
         self.slots = SlotRow()
         self.slots.slot_clicked.connect(self.on_slot_clicked)
 
@@ -215,6 +243,7 @@ class SequenceConfig(QWidget):
         lay = QVBoxLayout()
         lay.addWidget(QLabel("Color Reduction"))
         lay.addLayout(trans_row)
+        lay.addLayout(alpha_row)
         lay.addSpacing(8)
         lay.addWidget(QLabel("Palette slots (fill as many as you need):"))
         lay.addWidget(self.slots)
@@ -230,6 +259,17 @@ class SequenceConfig(QWidget):
     def transparent_rgb(self):
         hex_str = self.transparent_hex.lstrip("#")
         return tuple(bytes.fromhex(hex_str))
+
+    def threshold(self):
+        return self._threshold
+
+    def on_alpha_changed(self, v):
+        self._threshold = v
+        self.update_alpha_label()
+        self.palette_changed.emit()
+
+    def update_alpha_label(self):
+        self.alpha_val.setText(str(self._threshold))
 
     def colors(self):
         palette = room_palette()
@@ -368,10 +408,11 @@ class SequenceEditor(QWidget):
     def quantized(self, i):
         if self.cache[i] is None:
             colors = self.colors()
+            threshold = self.config.threshold()
             if colors:
-                self.cache[i] = quantize_frame(self.source(i), colors)
+                self.cache[i] = quantize_frame(self.source(i), colors, threshold)
             else:
-                self.cache[i] = self.source(i).copy()
+                self.cache[i] = apply_alpha_threshold(self.source(i), threshold)
         return self.cache[i]
 
     def refresh_current(self):
