@@ -1,0 +1,171 @@
+from PySide6.QtCore import QObject, Signal, Qt
+from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QSlider, QVBoxLayout, QWidget, QHBoxLayout
+from PySide6.QtGui import QImage, QPixmap, QPainter
+from akos_gen import AKOS
+
+class Animation(QObject):
+    frame_change = Signal(int)
+    anim_change = Signal(int)
+
+    def __init__(self):
+        super().__init__()
+        self.config = {}
+
+    @property
+    def frame(self):
+        return self.config.get("frame", 0)
+
+    @frame.setter
+    def frame(self, value):
+        self.config["frame"] = value
+        self.frame_change.emit(value)
+
+    @property
+    def anim(self):
+        return self.config.get("anim", 0)
+
+    @anim.setter
+    def anim(self, value):
+        self.config["anim"] = value
+        self.anim_change.emit(value)
+
+
+class PreviewWidget(QWidget):
+    def __init__(self, akos: AKOS, animation: Animation):
+        super().__init__()
+        self.setFixedSize(640, 480) # Match resolution of backyard baseball game
+        self.background = QPixmap('room_4_template_background.jpg')
+        self.animation = animation
+        self.akos = akos
+        akos_frames = akos.frames()
+        self.frames = []
+        for frame in akos_frames:
+            if self.akos.transparent_color is not None:
+                if frame.mode == "RGB":
+                    frame.putalpha(255) # Completely opaque
+                # do the conversion to transparent pixels here by modifying the frame data in place
+                target_rgb = tuple(bytes.fromhex(self.akos.transparent_color.lstrip("#")))
+                pixels = frame.load()
+                for y in range(frame.height):
+                    for x in range(frame.width):
+                        r, g, b, _ = pixels[x, y]
+                        if (r, g, b) == target_rgb:
+                            pixels[x, y] = (r, g, b, 0)
+                
+            im = frame.convert("RGBA")
+            data = im.tobytes("raw","RGBA")
+            qim = QImage(data, im.size[0], im.size[1], QImage.Format_RGBA8888)
+            self.frames.append(QPixmap.fromImage(qim))
+
+        # Hook into animation change events
+        animation.anim_change.connect(self.on_data_change)
+        animation.frame_change.connect(self.on_data_change)
+
+    def paintEvent(self, event):
+        """
+        Controls the order of layers for drawing. PaintEvent is built into the widget system.
+        """
+        painter = QPainter(self)
+        painter.drawPixmap(0,0, self.background)
+        if len(self.frames) > 0:
+            selected_anim = self.akos.anims[self.animation.anim]
+            draw_frames = [x for x in selected_anim["def"] if x.get("frame", None) is not None]
+            selected_frame = draw_frames[self.animation.frame]
+            char_pos_x = 320
+            char_pos_y = 240
+            if "offs_x" in selected_frame:
+                char_pos_x += selected_frame["offs_x"]
+            if "offs_y" in selected_frame:
+                char_pos_y += selected_frame["offs_y"]
+            painter.drawPixmap(char_pos_x, char_pos_y, self.frames[selected_frame["frame"]])
+        painter.end()
+
+    def on_data_change(self):
+        self.update()
+
+
+class PreviewControls(QWidget):
+    def __init__(self, akos: AKOS, animation: Animation):
+        super().__init__()
+        self.akos = akos
+        self.animation = animation
+        self.frame = 0
+        layout = QVBoxLayout()
+
+        # Slider
+        self.timeline = QSlider(
+            Qt.Orientation.Horizontal,
+            tickPosition=QSlider.TickPosition.TicksBelow,
+            tickInterval=1
+        )
+        self.timeline.valueChanged.connect(self.slider_change)
+        animation.anim_change.connect(self.on_anim_change)
+        self.on_anim_change() # Run this manually to set timeline size initially
+        layout.addWidget(self.timeline)
+        self.setLayout(layout)
+
+    def slider_change(self, value: int):
+        self.animation.frame = value
+
+    def on_anim_change(self):
+        selected_anim = self.akos.anims[self.animation.anim]
+        draw_frames = [x for x in selected_anim["def"] if x.get("frame", None) is not None]
+        num_frames = len(draw_frames)
+        self.frame = 0
+        self.timeline.setRange(0, num_frames - 1)
+
+class ConfigWindow(QWidget):
+    """
+    This "window" is a QWidget. If it has no parent, it
+    will appear as a free-floating window as we want.
+    """
+    def __init__(self, akos: AKOS, animation: Animation):
+        super().__init__()
+        self.akos = akos
+        self.animation = animation
+        layout = QVBoxLayout() # Vertical column of configuration
+
+        # Name editor
+        name_config = QHBoxLayout()
+        name_config.addWidget(QLabel("Name:"))
+        self.name_input = QLineEdit(self.akos["name"])
+        name_config.addWidget(self.name_input)
+
+        # Animation Picker
+        animation_picker = QHBoxLayout()
+        animation_picker.addWidget(QLabel("Animation:"))
+        animbox = QComboBox()
+        animation_picker.addWidget(animbox)
+        for (i,anim) in enumerate(akos.anims):
+            animbox.addItem(str(i))
+        animbox.activated.connect(self.anim_pick)
+
+        layout.addLayout(name_config)
+        layout.addLayout(animation_picker)
+        self.setLayout(layout)
+
+    def anim_pick(self, index: int):
+        self.animation.anim = index
+
+class AnimationEditor(QWidget):
+    def __init__(self, directory):
+            super().__init__()
+            # Attempt to create an animation window with the directory
+            akos = AKOS(path=directory)
+            animation = Animation()
+    
+            # Animation Preview side
+            anim_panel = QWidget()
+            anim_layout = QVBoxLayout()
+            anim_layout.addWidget(PreviewWidget(akos, animation))
+            anim_layout.addWidget(PreviewControls(akos, animation))
+            anim_panel.setLayout(anim_layout)
+    
+            # Widget when AKOS is selected
+            main_horizontal_panel = QHBoxLayout()
+    
+            # Config side
+            main_horizontal_panel.addWidget(ConfigWindow(akos, animation))
+            main_horizontal_panel.addWidget(anim_panel)
+    
+            self.setLayout(main_horizontal_panel)
