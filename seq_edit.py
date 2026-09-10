@@ -6,8 +6,9 @@ from PIL import Image
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QColorDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QMessageBox,
-    QPushButton, QScrollArea, QSlider, QToolButton, QVBoxLayout, QWidget,
+    QColorDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+    QMessageBox, QPushButton, QScrollArea, QSlider, QToolButton, QVBoxLayout,
+    QWidget,
 )
 
 ROOM_PALETTE_PATH = "4roomPalette.bmp"
@@ -110,6 +111,24 @@ def paint_transparent(rgba, transparent_rgb):
 
 def natkey(text):
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", text)]
+
+
+def parse_slots(text):
+    palette = room_palette()
+    out = []
+    for token in text.split(","):
+        token = token.strip()
+        if not token or token == "-1":
+            out.append(None)
+            continue
+        try:
+            idx = int(token)
+        except ValueError:
+            return None
+        if not 0 <= idx < len(palette):
+            return None
+        out.append(idx)
+    return (out + [None] * 16)[:16]
 
 
 def load_sequence_files(directory):
@@ -246,6 +265,13 @@ class SequenceConfig(QWidget):
         lay.addSpacing(8)
         lay.addWidget(QLabel("Palette slots (fill as many as you need):"))
         lay.addWidget(self.slots)
+        self.palette_text = QLineEdit()
+        self.palette_text.setToolTip(
+            "Palette slots as comma-separated 4RoomPalette indices, -1 for empty. "
+            "Press Enter or click away to apply."
+        )
+        self.palette_text.editingFinished.connect(self.on_palette_text_committed)
+        lay.addWidget(self.palette_text)
         lay.addWidget(self.count_label)
         lay.addWidget(self.hint_label)
         lay.addSpacing(8)
@@ -273,6 +299,21 @@ class SequenceConfig(QWidget):
     def colors(self):
         palette = room_palette()
         return [palette[i] for i in self.slot_colors if i is not None]
+
+    def serialize_slots(self):
+        return ",".join(str(i) if i is not None else "-1" for i in self.slot_colors)
+
+    def on_palette_text_committed(self):
+        parsed = parse_slots(self.palette_text.text())
+        if parsed is None:
+            self.palette_text.setText(self.serialize_slots())
+            self.hint_label.setText(
+                "Invalid palette text: use comma-separated 4RoomPalette indices, -1 for empty."
+            )
+            return
+        self.slot_colors = parsed
+        self.refresh_slots()
+        self.palette_changed.emit()
 
     def on_slot_clicked(self, i):
         if self.slot_colors[i] is not None:
@@ -307,6 +348,9 @@ class SequenceConfig(QWidget):
             f"background-color: {QColor(*rgb).name()}; color: {_contrast_color(rgb)};"
         )
         self.slots.set_slots(self.slot_colors, self.active_slot)
+        self.palette_text.blockSignals(True)
+        self.palette_text.setText(self.serialize_slots())
+        self.palette_text.blockSignals(False)
         used = sum(1 for c in self.slot_colors if c is not None)
         self.count_label.setText(f"colors: {used}/16")
         if self.active_slot is not None:
@@ -395,6 +439,7 @@ class SequenceEditor(QWidget):
 
         if not self.paths:
             QMessageBox.warning(self, "No images", f"No image files found in {directory}")
+        self.refresh_current()
 
     def colors(self):
         return self.config.colors()
