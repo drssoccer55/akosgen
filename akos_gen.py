@@ -4,6 +4,7 @@ import json
 from PIL import Image, ImageColor
 
 from akos_schema import AkosSchema
+from type_hint import TypeHint, HINTS
 
 # SCUMM v72he AKOS animation opcodes (little-endian uint16)
 AKC_DRAWCEL = 0x20C0        # opcode 0xC020
@@ -348,6 +349,9 @@ class AKOS(BinaryGen):
             frames.append(Image.open(f'{self.path}/{frame}'))
 
         return frames
+
+    def hint(self) -> TypeHint | None:
+        return HINTS.get(self.data.type_hint, None)
 
 
 if __name__ == '__main__':

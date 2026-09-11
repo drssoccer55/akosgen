@@ -20,3 +20,4 @@ class AkosSchema(BaseModel):
     anims: list[AnimDef]
     anim_offsets: list[int]
     transparent_color: str | None = None
+    type_hint: str | None = None

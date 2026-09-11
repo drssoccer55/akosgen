@@ -43,6 +43,7 @@ class PreviewWidget(QWidget):
         self.akos = akos
         akos_frames = akos.frames()
         self.frames = []
+        self.typehint = akos.hint()
         for frame in akos_frames:
             if self.akos.data.transparent_color is not None:
                 if frame.mode == "RGB":
@@ -78,6 +79,9 @@ class PreviewWidget(QWidget):
             selected_frame = draw_frames[self.animation.frame]
             char_pos_x = 320
             char_pos_y = 240
+            if self.typehint is not None:
+                char_pos_x = self.typehint.x_pos
+                char_pos_y = self.typehint.y_pos
             char_pos_x += selected_frame.offs_x
             char_pos_y += selected_frame.offs_y
             painter.drawPixmap(char_pos_x, char_pos_y, self.frames[selected_frame.frame])
@@ -92,7 +96,6 @@ class PreviewControls(QWidget):
         super().__init__()
         self.akos = akos
         self.animation = animation
-        self.frame = 0
         layout = QVBoxLayout()
 
         # Frame Slider
@@ -141,22 +144,22 @@ class PreviewControls(QWidget):
         self.setLayout(layout)
 
     def x_slider_update_from_data(self):
-        selected_frame = self.draw_frames[self.frame] # Needs to be used after draw frames set!
+        selected_frame = self.draw_frames[self.animation.frame] # Needs to be used after draw frames set!
         self.x_label.setText(f"X: {selected_frame.offs_x}")
         self.x_pos.setSliderPosition(selected_frame.offs_x)
 
     def x_slider_change(self, value: int):
-        self.draw_frames[self.frame].offs_x = value
+        self.draw_frames[self.animation.frame].offs_x = value
         self.x_slider_update_from_data()
         self.animation.refresh.emit()
 
     def y_slider_update_from_data(self):
-        selected_frame = self.draw_frames[self.frame] # Needs to be used after draw frames set!
+        selected_frame = self.draw_frames[self.animation.frame] # Needs to be used after draw frames set!
         self.y_label.setText(f"Y: {selected_frame.offs_y}")
         self.y_pos.setSliderPosition(selected_frame.offs_y)
 
     def y_slider_change(self, value: int):
-        self.draw_frames[self.frame].offs_y = value
+        self.draw_frames[self.animation.frame].offs_y = value
         self.y_slider_update_from_data()
         self.animation.refresh.emit()
 
@@ -169,7 +172,7 @@ class PreviewControls(QWidget):
     def on_anim_change(self):
         selected_anim = self.akos.data.anims[self.animation.anim]
         self.draw_frames = [x for x in selected_anim.definition if isinstance(x, Frame)]
-        self.frame = 0
+        self.animation.frame = 0
         self.update_slider_label()
         self.x_slider_update_from_data()
         self.y_slider_update_from_data()
@@ -190,6 +193,11 @@ class ConfigWindow(QWidget):
         self.akos = akos
         self.animation = animation
         layout = QVBoxLayout() # Vertical column of configuration
+
+        # Description if exists
+        typehint = self.akos.hint()
+        if typehint is not None:
+            layout.addWidget(QLabel(typehint.desc))
 
         # Name editor
         name_config = QHBoxLayout()
