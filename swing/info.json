@@ -14,7 +14,7 @@
     "room_palette": 4,
     "anims": [
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 0,
                     "offs_x": 0,
@@ -33,7 +33,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 1,
                     "offs_x": 0,
@@ -52,7 +52,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 2,
                     "offs_x": 0,
@@ -71,7 +71,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 3,
                     "offs_x": 0,
@@ -85,7 +85,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 4,
                     "offs_x": 0,
@@ -129,7 +129,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 5,
                     "offs_x": 0,
@@ -173,7 +173,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 6,
                     "offs_x": 0,
@@ -217,7 +217,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 7,
                     "offs_x": 0,

@@ -2,6 +2,7 @@ from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QSlider, QVBoxLayout, QWidget, QHBoxLayout
 from PySide6.QtGui import QImage, QPixmap, QPainter
 from akos_gen import AKOS
+from akos_schema import Frame
 
 class Animation(QObject):
     frame_change = Signal(int)
@@ -12,7 +13,7 @@ class Animation(QObject):
         self.config = {}
 
     @property
-    def frame(self):
+    def frame(self) -> int:
         return self.config.get("frame", 0)
 
     @frame.setter
@@ -21,7 +22,7 @@ class Animation(QObject):
         self.frame_change.emit(value)
 
     @property
-    def anim(self):
+    def anim(self) -> int:
         return self.config.get("anim", 0)
 
     @anim.setter
@@ -40,11 +41,11 @@ class PreviewWidget(QWidget):
         akos_frames = akos.frames()
         self.frames = []
         for frame in akos_frames:
-            if self.akos.transparent_color is not None:
+            if self.akos.data.transparent_color is not None:
                 if frame.mode == "RGB":
                     frame.putalpha(255) # Completely opaque
                 # do the conversion to transparent pixels here by modifying the frame data in place
-                target_rgb = tuple(bytes.fromhex(self.akos.transparent_color.lstrip("#")))
+                target_rgb = tuple(bytes.fromhex(self.akos.data.transparent_color.lstrip("#")))
                 pixels = frame.load()
                 for y in range(frame.height):
                     for x in range(frame.width):
@@ -68,8 +69,8 @@ class PreviewWidget(QWidget):
         painter = QPainter(self)
         painter.drawPixmap(0,0, self.background)
         if len(self.frames) > 0:
-            selected_anim = self.akos.anims[self.animation.anim]
-            draw_frames = [x for x in selected_anim["def"] if x.get("frame", None) is not None]
+            selected_anim = self.akos.data.anims[self.animation.anim]
+            draw_frames = [x for x in selected_anim.definition if isinstance(x, Frame)]
             selected_frame = draw_frames[self.animation.frame]
             char_pos_x = 320
             char_pos_y = 240
@@ -77,7 +78,7 @@ class PreviewWidget(QWidget):
                 char_pos_x += selected_frame["offs_x"]
             if "offs_y" in selected_frame:
                 char_pos_y += selected_frame["offs_y"]
-            painter.drawPixmap(char_pos_x, char_pos_y, self.frames[selected_frame["frame"]])
+            painter.drawPixmap(char_pos_x, char_pos_y, self.frames[selected_frame.frame])
         painter.end()
 
     def on_data_change(self):
@@ -93,26 +94,36 @@ class PreviewControls(QWidget):
         layout = QVBoxLayout()
 
         # Slider
+        timeline_layout = QHBoxLayout()
         self.timeline = QSlider(
             Qt.Orientation.Horizontal,
             tickPosition=QSlider.TickPosition.TicksBelow,
             tickInterval=1
         )
         self.timeline.valueChanged.connect(self.slider_change)
+        self.label = QLabel()
         animation.anim_change.connect(self.on_anim_change)
         self.on_anim_change() # Run this manually to set timeline size initially
-        layout.addWidget(self.timeline)
+        timeline_layout.addWidget(self.timeline)
+        timeline_layout.addWidget(self.label)
+        layout.addLayout(timeline_layout)
         self.setLayout(layout)
 
     def slider_change(self, value: int):
         self.animation.frame = value
+        self.update_slider_label()
 
     def on_anim_change(self):
-        selected_anim = self.akos.anims[self.animation.anim]
-        draw_frames = [x for x in selected_anim["def"] if x.get("frame", None) is not None]
-        num_frames = len(draw_frames)
+        selected_anim = self.akos.data.anims[self.animation.anim]
+        self.draw_frames = [x for x in selected_anim.definition if isinstance(x, Frame)]
         self.frame = 0
+        self.update_slider_label()
+
+    def update_slider_label(self):
+        num_frames = len(self.draw_frames)
         self.timeline.setRange(0, num_frames - 1)
+        self.label.setText(f"{self.animation.frame + 1}/{num_frames}")
+
 
 class ConfigWindow(QWidget):
     """
@@ -128,7 +139,7 @@ class ConfigWindow(QWidget):
         # Name editor
         name_config = QHBoxLayout()
         name_config.addWidget(QLabel("Name:"))
-        self.name_input = QLineEdit(self.akos["name"])
+        self.name_input = QLineEdit(self.akos.data.name)
         name_config.addWidget(self.name_input)
 
         # Animation Picker
@@ -136,7 +147,7 @@ class ConfigWindow(QWidget):
         animation_picker.addWidget(QLabel("Animation:"))
         animbox = QComboBox()
         animation_picker.addWidget(animbox)
-        for (i,anim) in enumerate(akos.anims):
+        for (i,anim) in enumerate(akos.data.anims):
             animbox.addItem(str(i))
         animbox.activated.connect(self.anim_pick)
 

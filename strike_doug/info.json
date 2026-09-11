@@ -21,7 +21,7 @@
     "room_palette": 4,
     "anims": [
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 14,
                     "offs_x": -99,
@@ -53,7 +53,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 2,
                     "offs_x": -99,
@@ -85,7 +85,7 @@
             ]
         },
         {
-            "def": [
+            "definition": [
                 {
                     "frame": 5,
                     "offs_x": -99,

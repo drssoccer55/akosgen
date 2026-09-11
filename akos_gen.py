@@ -3,6 +3,8 @@ import sys
 import json
 from PIL import Image, ImageColor
 
+from akos_schema import AkosSchema
+
 # SCUMM v72he AKOS animation opcodes (little-endian uint16)
 AKC_DRAWCEL = 0x20C0        # opcode 0xC020
 AKC_SETVAR = 0x10C0          # opcode 0xC010
@@ -206,16 +208,16 @@ class AKSQ(BinaryGen):
     For example, a draw command saying which frame to draw and at what offset. There are also a number of special commands that
     interface with the game and can set game data.
     """
-    def __init__(self, data: dict):
+    def __init__(self, data: AkosSchema):
         self.data = data
         self.offsets = []
 
     def binary(self) -> bytearray:
         bytez = bytearray()
         last_draw = 0
-        for anim in self.data["anims"]:
+        for anim in self.data.anims:
             self.offsets.append(len(bytez))
-            for cmd in anim["def"]:
+            for cmd in anim["definition"]:
                 if "special" in cmd:
                     match cmd["special"]:
                         case "AKC_HIDEACTOR":
@@ -257,7 +259,7 @@ class AKCH(BinaryGen):
     Not sure what CH stands for. AKCH is used for animation offsets and needs the AKSQ binary defined first to know
     where the offsets are located. All animations in this project use 1 limb for simplification.
     """
-    def __init__(self, aksq_offsets: list[int], data: dict):
+    def __init__(self, aksq_offsets: list[int], data: AkosSchema):
         self.aksq_offsets = aksq_offsets
         self.data = data
 
@@ -265,12 +267,12 @@ class AKCH(BinaryGen):
         bytez = bytearray()
         bytez += "AKCH".encode()
         # uint32BE 4 header, 4 size, 2 bytes per offset def and 7 bytes per anim def
-        bytez += struct.pack(">I", 8 + (7 * len(self.aksq_offsets)) + (2 * len(self.data["anim_offsets"])))
+        bytez += struct.pack(">I", 8 + (7 * len(self.aksq_offsets)) + (2 * len(self.data.anim_offsets)))
         for anim_offset in self.data["anim_offsets"]:
             if anim_offset == -1:
                 bytez += struct.pack("<H", 0) # blank
             else:
-                bytez += struct.pack("<H", (7 * anim_offset) + (2 * len(self.data["anim_offsets"])))  # definition position
+                bytez += struct.pack("<H", (7 * anim_offset) + (2 * len(self.data.anim_offsets)))  # definition position
 
         for offset in self.aksq_offsets:
             bytez += struct.pack("<H", 32768) # uint16 mask for 1 limb
@@ -293,10 +295,10 @@ class AKOS(BinaryGen):
 
     def binary(self) -> bytearray:
         frames = self.frames()
-        transparent_color = ImageColor.getcolor(self.data["transparent_color"], "RGB")
+        transparent_color = ImageColor.getcolor(self.data.transparent_color, "RGB")
 
         # Get room palette and override color of transparent as specified
-        room_palette = Image.open(f'{self.data["room_palette"]}roomPalette.bmp')
+        room_palette = Image.open(f'{self.data.room_palette}roomPalette.bmp')
         cur_palette = room_palette.getpalette()
         cur_palette[0] = transparent_color[0]
         cur_palette[1] = transparent_color[1]
@@ -305,7 +307,7 @@ class AKOS(BinaryGen):
 
         image_palette = ImagePalette(room_palette)
 
-        akhd = AKHD(numFrames=len(frames), numChores=len(self.data["anim_offsets"])).binary()
+        akhd = AKHD(numFrames=len(frames), numChores=len(self.data.anim_offsets)).binary()
         akcd = AKCD(frames=frames, palette=image_palette) # Have to run akcd to get the local palette
         akcd_bin = akcd.binary() # generates offsets
         local_palette = image_palette.get_16_color_local_palette()
@@ -328,35 +330,24 @@ class AKOS(BinaryGen):
         bytez += akcd_bin
         return bytez
 
-    def config(self) -> dict:
+    def config(self) -> AkosSchema:
         """
         Open the JSON config
         """
         with open(f'{self.path}/info.json', 'r') as file:
             data = json.load(file)
 
-        return data
+        return AkosSchema.model_validate(data)
 
     def frames(self) -> list[Image.Image]:
         """
         Use the frames
         """
         frames = []
-        for frame in self.data['frames']:
+        for frame in self.data.frames:
             frames.append(Image.open(f'{self.path}/{frame}'))
 
         return frames
-
-    @property
-    def anims(self) -> list[dict]:
-        return self.data["anims"]
-
-    def get_name(self) -> str:
-        return self.data["name"]
-
-    @property
-    def transparent_color(self) -> str | None:
-        return self.data.get("transparent_color", None)
 
 
 if __name__ == '__main__':
@@ -369,5 +360,5 @@ if __name__ == '__main__':
 
     akos_file = AKOS(path=dir_path)
 
-    with open(f'{akos_file.get_name()}.AKOS', 'wb') as file:
+    with open(f'{akos_file.data.name}.AKOS', 'wb') as file:
         file.write(akos_file.binary())

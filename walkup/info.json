@@ -7,7 +7,7 @@
     "room_palette": 4,
     "anims": [
         {
-            "def": [
+            "definition": [
                 {
                     "special": "AKC_EMPTYCEL"
                 },
