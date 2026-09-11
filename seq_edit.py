@@ -481,7 +481,11 @@ class SequenceEditor(QWidget):
             return
         transparent_rgb = self.config.transparent_rgb()
         for i, path in enumerate(self.paths):
-            out = paint_transparent(self.quantized(i), transparent_rgb)
+            quant = self.quantized(i)
+            bbox = quant.getbbox()
+            if bbox is not None:
+                quant = quant.crop(bbox)
+            out = paint_transparent(quant, transparent_rgb)
             name = os.path.splitext(os.path.basename(path))[0]
             out.save(os.path.join(folder, f"{name}.png"))
         QMessageBox.information(self, "Saved", f"Saved {len(self.paths)} frames to {folder}")
