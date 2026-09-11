@@ -9,6 +9,7 @@ from akos_schema import Frame
 class Animation(QObject):
     frame_change = Signal(int)
     anim_change = Signal(int)
+    refresh = Signal()
 
     def __init__(self):
         super().__init__()
@@ -63,6 +64,7 @@ class PreviewWidget(QWidget):
         # Hook into animation change events
         animation.anim_change.connect(self.on_data_change)
         animation.frame_change.connect(self.on_data_change)
+        animation.refresh.connect(self.on_data_change)
 
     def paintEvent(self, event):
         """
@@ -76,10 +78,8 @@ class PreviewWidget(QWidget):
             selected_frame = draw_frames[self.animation.frame]
             char_pos_x = 320
             char_pos_y = 240
-            if "offs_x" in selected_frame:
-                char_pos_x += selected_frame["offs_x"]
-            if "offs_y" in selected_frame:
-                char_pos_y += selected_frame["offs_y"]
+            char_pos_x += selected_frame.offs_x
+            char_pos_y += selected_frame.offs_y
             painter.drawPixmap(char_pos_x, char_pos_y, self.frames[selected_frame.frame])
         painter.end()
 
@@ -95,7 +95,7 @@ class PreviewControls(QWidget):
         self.frame = 0
         layout = QVBoxLayout()
 
-        # Slider
+        # Frame Slider
         timeline_layout = QHBoxLayout()
         self.timeline = QSlider(
             Qt.Orientation.Horizontal,
@@ -105,21 +105,74 @@ class PreviewControls(QWidget):
         self.timeline.valueChanged.connect(self.slider_change)
         self.label = QLabel()
         animation.anim_change.connect(self.on_anim_change)
-        self.on_anim_change() # Run this manually to set timeline size initially
         timeline_layout.addWidget(self.timeline)
         timeline_layout.addWidget(self.label)
         layout.addLayout(timeline_layout)
+
+        # x pos slider
+        x_layout = QHBoxLayout()
+        self.x_label = QLabel()
+        self.x_pos = QSlider(
+            Qt.Orientation.Horizontal,
+            tickInterval=1,
+            minimum=-480,
+            maximum=480
+        )
+        self.x_pos.valueChanged.connect(self.x_slider_change)
+        x_layout.addWidget(self.x_label)
+        x_layout.addWidget(self.x_pos)
+        layout.addLayout(x_layout)
+
+        # y pos slider
+        y_layout = QHBoxLayout()
+        self.y_label = QLabel()
+        self.y_pos = QSlider(
+            Qt.Orientation.Horizontal,
+            tickInterval=1,
+            minimum=-640,
+            maximum=640
+        )
+        self.y_pos.valueChanged.connect(self.y_slider_change)
+        y_layout.addWidget(self.y_label)
+        y_layout.addWidget(self.y_pos)
+        layout.addLayout(y_layout)
+
+        self.on_anim_change() # Run this manually to set timeline size initially
         self.setLayout(layout)
+
+    def x_slider_update_from_data(self):
+        selected_frame = self.draw_frames[self.frame] # Needs to be used after draw frames set!
+        self.x_label.setText(f"X: {selected_frame.offs_x}")
+        self.x_pos.setSliderPosition(selected_frame.offs_x)
+
+    def x_slider_change(self, value: int):
+        self.draw_frames[self.frame].offs_x = value
+        self.x_slider_update_from_data()
+        self.animation.refresh.emit()
+
+    def y_slider_update_from_data(self):
+        selected_frame = self.draw_frames[self.frame] # Needs to be used after draw frames set!
+        self.y_label.setText(f"Y: {selected_frame.offs_y}")
+        self.y_pos.setSliderPosition(selected_frame.offs_y)
+
+    def y_slider_change(self, value: int):
+        self.draw_frames[self.frame].offs_y = value
+        self.y_slider_update_from_data()
+        self.animation.refresh.emit()
 
     def slider_change(self, value: int):
         self.animation.frame = value
         self.update_slider_label()
+        self.x_slider_update_from_data()
+        self.y_slider_update_from_data()
 
     def on_anim_change(self):
         selected_anim = self.akos.data.anims[self.animation.anim]
         self.draw_frames = [x for x in selected_anim.definition if isinstance(x, Frame)]
         self.frame = 0
         self.update_slider_label()
+        self.x_slider_update_from_data()
+        self.y_slider_update_from_data()
 
     def update_slider_label(self):
         num_frames = len(self.draw_frames)
