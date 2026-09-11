@@ -1,5 +1,7 @@
+import os
+
 from PySide6.QtCore import QObject, Signal, Qt
-from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QSlider, QVBoxLayout, QWidget, QHBoxLayout
+from PySide6.QtWidgets import QComboBox, QFileDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSlider, QVBoxLayout, QWidget, QHBoxLayout
 from PySide6.QtGui import QImage, QPixmap, QPainter
 from akos_gen import AKOS
 from akos_schema import Frame
@@ -140,6 +142,7 @@ class ConfigWindow(QWidget):
         name_config = QHBoxLayout()
         name_config.addWidget(QLabel("Name:"))
         self.name_input = QLineEdit(self.akos.data.name)
+        self.name_input.editingFinished.connect(self.on_name_change)
         name_config.addWidget(self.name_input)
 
         # Animation Picker
@@ -151,12 +154,32 @@ class ConfigWindow(QWidget):
             animbox.addItem(str(i))
         animbox.activated.connect(self.anim_pick)
 
+        # Save config button
+        self.save_btn = QPushButton("Save Config")
+        self.save_btn.setToolTip("Writes updated info.json to a chosen folder")
+        self.save_btn.clicked.connect(self.save_config)
+
         layout.addLayout(name_config)
         layout.addLayout(animation_picker)
+        layout.addWidget(self.save_btn)
         self.setLayout(layout)
 
     def anim_pick(self, index: int):
         self.animation.anim = index
+
+    def on_name_change(self):
+        self.akos.data.name = self.name_input.text()
+
+    def save_config(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select output folder")
+        if not folder:
+            return
+
+        file_path = os.path.join(folder, 'info.json')
+
+        with open(file_path, 'w') as file:
+            file.write(self.akos.data.model_dump_json(indent=4))
+        QMessageBox.information(self, "Saved", f"Saved info.json to {file_path}")
 
 class AnimationEditor(QWidget):
     def __init__(self, directory):
