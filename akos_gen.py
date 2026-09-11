@@ -3,11 +3,12 @@ import sys
 import json
 from PIL import Image, ImageColor
 
-from akos_schema import AkosSchema
+from akos_schema import AkosSchema, Special
 from type_hint import TypeHint, HINTS
 
 # SCUMM v72he AKOS animation opcodes (little-endian uint16)
-AKC_DRAWCEL = 0x20C0        # opcode 0xC020
+AKC_DRAWMANY = 0x20C0        # opcode 0xC020
+AKC_CONDDRAWMANY = 0x21C0    # opcode 0xC021
 AKC_SETVAR = 0x10C0          # opcode 0xC010
 AKC_EMPTYCEL = 0x01C0        # opcode 0xC001
 AKC_GOTOSTATE = 0x30C0       # opcode 0xC030
@@ -218,32 +219,38 @@ class AKSQ(BinaryGen):
         last_draw = 0
         for anim in self.data.anims:
             self.offsets.append(len(bytez))
-            for cmd in anim["definition"]:
-                if "special" in cmd:
-                    match cmd["special"]:
+            for cmd in anim.definition:
+                if isinstance(cmd, Special):
+                    match cmd.special:
                         case "AKC_HIDEACTOR":
                             bytez += struct.pack("<H", AKC_HIDEACTOR)
                         case "AKC_SETVAR":
                             bytez += struct.pack("<H", AKC_SETVAR)
-                            bytez += struct.pack("<H", cmd["value"])
-                            bytez += struct.pack("B", cmd["var"])
+                            bytez += struct.pack("<H", cmd.value)
+                            bytez += struct.pack("B", cmd.var)
                         case "AKC_EMPTYCEL":
                             bytez += struct.pack("<H", AKC_EMPTYCEL)
                         case "AKC_IFVAREQJUMP_LASTDRAW":
                             bytez += struct.pack("<H", AKC_IFVAREQJUMP_LASTDRAW)
                             bytez += struct.pack("<H", last_draw)
-                            bytez += struct.pack("<H", cmd["value"])
-                            bytez += struct.pack("B", cmd["var"])
+                            bytez += struct.pack("<H", cmd.value)
+                            bytez += struct.pack("B", cmd.var)
                         case _:
-                            print(f"Command not supported {cmd['special']} - skipping")
+                            print(f"Command not supported {cmd.special} - skipping")
                             continue
                 else:
                     last_draw = len(bytez)
-                    bytez += struct.pack("<H", AKC_DRAWCEL)
-                    bytez += struct.pack("B", 1) # 1 limb
-                    bytez += struct.pack("<h", cmd["offs_x"])  # int16
-                    bytez += struct.pack("<h", cmd["offs_y"])  # int16
-                    bytez += struct.pack("B", cmd["frame"]) # 1 byte representing frames so capped at 256 frames rn
+                    # AKC_CondDrawMany: opcode | skip | layerCount | layer indices | drawCount | entries
+                    bytez += struct.pack("<H", AKC_CONDDRAWMANY)
+                    cmd_start = len(bytez)
+                    bytez += struct.pack("B", 0)  # skip length, patched below
+                    bytez += struct.pack("B", 1)  # layer count (1)
+                    bytez += struct.pack("B", 0)  # layer index 0 (matches 1-entry AKCT)
+                    bytez += struct.pack("B", 1)  # number of draw records
+                    bytez += struct.pack("<h", cmd.offs_x)  # int16
+                    bytez += struct.pack("<h", cmd.offs_y)  # int16
+                    bytez += struct.pack("B", cmd.frame)  # 1 byte cel ref, must stay < 0x80
+                    bytez[cmd_start] = len(bytez) - last_draw
             bytez += struct.pack("<H", AKC_GOTOSTATE)
             bytez += struct.pack("<H", last_draw)
             bytez += struct.pack("<H", AKC_ENDSEQ)
@@ -269,7 +276,7 @@ class AKCH(BinaryGen):
         bytez += "AKCH".encode()
         # uint32BE 4 header, 4 size, 2 bytes per offset def and 7 bytes per anim def
         bytez += struct.pack(">I", 8 + (7 * len(self.aksq_offsets)) + (2 * len(self.data.anim_offsets)))
-        for anim_offset in self.data["anim_offsets"]:
+        for anim_offset in self.data.anim_offsets:
             if anim_offset == -1:
                 bytez += struct.pack("<H", 0) # blank
             else:
@@ -280,6 +287,29 @@ class AKCH(BinaryGen):
             bytez += struct.pack("B", 6)  # 1 byte mode 6
             bytez += struct.pack("<H", offset)  # uint16 start in AKSQ
             bytez += struct.pack("<H", 0)  # len property unused
+        return bytez
+
+
+class AKCT(BinaryGen):
+    """
+    Actor condition table. Used for conditional display and shadow mask per sub-cel.
+    For heversion >= 90, each entry's shadow bit (0x8000) enables XMAP color-mixing
+    for that sub-cel. Entry format (uint32 LE):
+      bits 31-30: type (0 = no condition, 0x40000000 = restored, 0x80000000 = dirty)
+      bits 29-16: condition mask (checked against a._heCondMask)
+      bit 15 (0x8000): shadow enable (AKC_ExtendWordBit)
+      bits 12-0: shadow flags / reserved
+    """
+
+    def __init__(self, num_entries: int = 1):
+        self.num_entries = num_entries
+
+    def binary(self) -> bytearray:
+        bytez = bytearray()
+        bytez += "AKCT".encode()
+        bytez += struct.pack(">I", 8 + self.num_entries * 4)  # uint32BE: 8 header + 4 per entry
+        for _ in range(self.num_entries):
+            bytez += struct.pack("<I", 0x8000)  # shadow on, no condition, always display
         return bytez
 
 
@@ -318,7 +348,8 @@ class AKOS(BinaryGen):
         aksq = AKSQ(self.data)
         aksq_bin = aksq.binary()
         akch = AKCH(aksq.offsets, self.data).binary()
-        total_size = len(akhd) + len(akpl) + len(akcd_bin) + len(akci) + len(akof) + len(aksq_bin) + len(akch)
+        akct = AKCT(num_entries=1).binary()  # 1 entry: shadow on, no condition
+        total_size = len(akhd) + len(akpl) + len(akcd_bin) + len(akci) + len(akof) + len(aksq_bin) + len(akch) + len(akct)
         bytez = bytearray()
         bytez += "AKOS".encode()
         bytez += struct.pack(">I", total_size + 8)
@@ -328,6 +359,7 @@ class AKOS(BinaryGen):
         bytez += akof
         bytez += aksq_bin
         bytez += akch
+        bytez += akct
         bytez += akcd_bin
         return bytez
 
